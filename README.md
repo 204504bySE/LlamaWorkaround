@@ -55,7 +55,7 @@ Edit the following in `appsettings.json`.
 }
 ```
 
-#### 3. Run the application
+### 3. Run the application
 
 ```bash
 dotnet LlamaWorkaround.dll
