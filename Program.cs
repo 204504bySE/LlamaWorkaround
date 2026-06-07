@@ -15,6 +15,7 @@ if (urls is { Length: > 0 })
 }
 var serialRequests = builder.Configuration.GetSection("SerialRequests");
 builder.Services.Configure<SerialRequestsOptions>(serialRequests);
+builder.Services.AddRequestTimeouts();
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
@@ -27,7 +28,7 @@ builder.Services.AddSingleton<SerialRequestsGate>(sp =>
 var app = builder.Build();
 
 app.UseMiddleware<SerialRequestsMiddleware>();
-
+app.UseRequestTimeouts();
 app.MapReverseProxy();
 
 app.Run();
