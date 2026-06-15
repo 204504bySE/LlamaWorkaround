@@ -24,7 +24,14 @@ Edit the following in `appsettings.json`.
     "Urls": [ "http://127.0.0.1:12345" ] // The URL and port to listen on
   },
   "SerialRequests": {
-    "TargetPaths": [    // The request paths to limit concurrency. Default is the paths of OpenAI compatible API.
+    "TargetPaths": [    // The request paths to limit concurrency.
+      "/completion",
+      "/detokenize",
+      "apply-template",
+      "/embedding",
+      "/embeddings",
+      "/reranking",
+      "/infill",
       "/v1/chat/completions",
       "/v1/responses",
       "/v1/completions",
