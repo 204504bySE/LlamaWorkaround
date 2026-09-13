@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+﻿using LlamaWorkaround.SseBatching;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -13,56 +13,34 @@ if (urls is { Length: > 0 })
 {
     builder.WebHost.UseUrls(urls);
 }
-var serialRequests = builder.Configuration.GetSection("SerialRequests");
-builder.Services.Configure<SerialRequestsOptions>(serialRequests);
+
+builder.Services.AddOptions<SseBatchingOptions>()
+    .BindConfiguration("SseBatching")
+    .ValidateDataAnnotations()
+    .Validate(
+        static options => Uri.TryCreate(options.DestinationAddress, UriKind.Absolute, out _),
+        "SseBatching:DestinationAddress must be an absolute URL.")
+    .ValidateOnStart();
+builder.Services.AddHttpClient<SseChatCompletionsProxy>((services, client) =>
+{
+    var options = services.GetRequiredService<IOptions<SseBatchingOptions>>().Value;
+    client.BaseAddress = new Uri(options.DestinationAddress, UriKind.Absolute);
+    client.Timeout = Timeout.InfiniteTimeSpan;
+});
 builder.Services.AddRequestTimeouts();
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-builder.Services.AddSingleton<SerialRequestsGate>(sp =>
-{
-    var options = serialRequests.Get<SerialRequestsOptions>() ?? new SerialRequestsOptions();
-    return new SerialRequestsGate(options.Concurrency);
-});
-
 var app = builder.Build();
 
-app.UseMiddleware<SerialRequestsMiddleware>();
 app.UseRequestTimeouts();
+app.MapPost("/v1/chat/completions", static async (
+    HttpContext context,
+    SseChatCompletionsProxy proxy,
+    CancellationToken cancellationToken) =>
+{
+    await proxy.ForwardAsync(context, cancellationToken);
+});
 app.MapReverseProxy();
 
 app.Run();
-
-public sealed class SerialRequestsMiddleware
-{
-    private readonly RequestDelegate _next;
-
-    public SerialRequestsMiddleware(RequestDelegate next)
-    {
-        _next = next;
-    }
-
-    public async Task InvokeAsync(HttpContext context, SerialRequestsGate gate, IOptions<SerialRequestsOptions> options)
-    {
-        var targetPaths = options.Value.TargetPaths;
-        var requestPath = context.Request.Path.Value ?? "";
-
-        if (targetPaths.Any(path => path == requestPath))
-        {
-            await gate.Semaphore.WaitAsync(context.RequestAborted);
-            try { await _next(context); }
-            finally { gate.Semaphore.Release(); }
-        }
-        else { await _next(context); }
-    }
-}
-
-public sealed class SerialRequestsGate(int concurrency) 
-{
-    public SemaphoreSlim Semaphore { get; } = new(concurrency, concurrency);
-}
-public sealed class SerialRequestsOptions
-{
-    public string[] TargetPaths { get; init; } = [];
-    public int Concurrency { get; set; } = 1;
-}

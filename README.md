@@ -23,22 +23,9 @@ Edit the following in `appsettings.json`.
   "Hosting": {
     "Urls": [ "http://127.0.0.1:12345" ] // The URL and port to listen on
   },
-  "SerialRequests": {
-    "TargetPaths": [    // The request paths to limit concurrency.
-      "/completion",
-      "/detokenize",
-      "apply-template",
-      "/embedding",
-      "/embeddings",
-      "/reranking",
-      "/infill",
-      "/v1/chat/completions",
-      "/v1/responses",
-      "/v1/completions",
-      "/v1/embeddings",
-      "/v1/messages"
-    ],
-    "Concurrency": 1    // The maximum concurrency for the specified request paths. Must be less or equal to --models-max of llama.cpp.
+  "SseBatching": {
+    "DestinationAddress": "http://127.0.0.1:23456/", // The URL and port of the llama.cpp server
+    "ChunkCount": 4 // Combine this many OpenAI streaming chunks into one SSE message.
   },
   "ReverseProxy": {
     "Routes": {
@@ -61,6 +48,8 @@ Edit the following in `appsettings.json`.
   }
 }
 ```
+
+`/v1/chat/completions` is handled separately from the catch-all YARP route. When the upstream response is `text/event-stream`, consecutive OpenAI chunks are merged by `choices[].index`; `delta.content`, `delta.reasoning_content`, and `delta.refusal` are concatenated. The final partial batch is sent before `[DONE]`. Non-SSE responses and other paths are proxied unchanged. Keep `SseBatching:DestinationAddress` and the YARP destination pointed at the same server.
 
 ### 3. Run the application
 
