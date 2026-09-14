@@ -2,7 +2,7 @@
 
 Simple reverse proxy for llama.cpp.  
 This is a workaround for the issue described in the following GitHub issue:  
-https://github.com/ggml-org/llama.cpp/issues/21678
+https://github.com/open-webui/open-webui/discussions/26200
 
 ## Environment
 
